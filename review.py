@@ -5,12 +5,11 @@ import numpy as np
 import math
 import re
 
-def distance_pclass_fare (row, ref):
-	print math.pow(row['Pclass'] -ref['Pclass'], 2) + math.pow(row['Fare'] - ref['Fare'], 2)
-	return math.pow(row['Pclass'] -ref['Pclass'], 2) + math.pow(row['Fare'] - ref['Fare'], 2)
-
-# Read training data
-train_set = pd.read_csv ('Data/train.csv', sep=',', header=0, skip_blank_lines=True, quotechar='"')
+#==================================
+print "Reading training data ..."
+#==================================
+train_set = pd.read_csv ('Data/train.csv', sep=',', header=0, 
+			skip_blank_lines=True, quotechar='"')
 M = train_set.shape [0] # Size of training set
 
 # Predict factors:
@@ -21,9 +20,16 @@ M = train_set.shape [0] # Size of training set
 #   - Pclass
 #   - Floor
 
-m_train_set = pd.DataFrame(columns=['Sex','Age', 'SibSp','Parch', 'Pclass','Floor','Survived'])
+#==================================
+print "Extracting and numerizing features ..."
+#==================================
+m_train_set = pd.DataFrame(columns=[
+			'Sex','Age', 'SibSp','Parch', 'Pclass',
+			'Floor'])
+m_survived = pd.DataFrame(columns=['Survived'])
 
-for idx, row in train_set[['Survived','Sex','Age','SibSp','Parch','Pclass','Cabin']].iterrows():
+for idx, row in train_set[['Survived','Sex','Age','SibSp',
+			'Parch','Pclass','Cabin']].iterrows():
 	cabins   = row['Cabin'].split(' ') if pd.notnull(row['Cabin']) else ['Z']
 	sex      = 1 if row['Sex'] == 'female' else 0
 	age      = row['Age'] if pd.notnull(row['Age']) else 0
@@ -35,13 +41,33 @@ for idx, row in train_set[['Survived','Sex','Age','SibSp','Parch','Pclass','Cabi
 	if len(cabins) > 1:
 		for i in cabins:
 			floor = ord(re.findall('[A-Z]',i)[0]) - 65
-			new_row = {'Pclass':pclass, 'Floor':floor, 'Sex':sex, 'Age':age, 'SibSp':sibsp, 'Parch':parch, 'Survived':survived}
+			new_row = {'Pclass':pclass, 'Floor':floor, 'Sex':sex, 'Age':age, 
+								'SibSp':sibsp, 'Parch':parch}
 			m_train_set.loc[len(m_train_set)] = new_row
+			m_survived.loc[len(m_survived)] = {'Survived':"Survived"} if survived == 1 else {'Survived':"Dead"}
 	else:
 		floor = ord(re.findall('[A-Z]',cabins[0])[0]) - 65
-		new_row = {'Pclass':pclass, 'Floor':floor, 'Sex':sex, 'Age':age, 'SibSp':sibsp, 'Parch':parch, 'Survived':survived}
+		new_row = {'Pclass':pclass, 'Floor':floor, 'Sex':sex, 
+							'Age':age, 'SibSp':sibsp, 'Parch':parch}
 		m_train_set.loc[len(m_train_set)] = new_row
-	
+		m_survived.loc[len(m_survived)] = {'Survived':"Survived"} if survived == 1 else {'Survived':"Dead"}
+
+#)==================================
+print "Visulizing training data in 2D space"
+#==================================
+# Normalizing and scaling data
+s_train_set = (m_train_set - m_train_set.mean()) / (m_train_set.max() -
+		m_train_set.min())
+sigma = s_train_set.cov() # Compute covariance matrix of preprocessed data
+U, s, V = np.linalg.svd(sigma, full_matrices=True, compute_uv=True)
+Ureduce = U [:, range(0,2)]
+pa_train_set = s_train_set.dot(Ureduce).rename(columns={0:'P0',1:'P1'})
+
+# Visualize Principal Component of traning set
+p = ggplot(pa_train_set.assign(Survived=m_survived['Survived']), aes(x='P0',
+y='P1', color = 'factor(Survived)'))
+p = p + geom_point() + scale_color_manual(values=["red","green"]) + ggtitle("Survived")
+p.show()
 
 #pclass_fare_floor_train_set['pidx'] = pclass_fare_floor_train_set.groupby('Floor').cumcount() + 1
 
