@@ -1,18 +1,17 @@
 from collections import Counter as cnt
 from ggplot import *
+import matplotlib.pyplot as plt
 import pandas as pd 
 import numpy as np
-import math
 import re
-import sklearn as skl
-from sklearn.neural_network import MLPClassifier as NN
+from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import classification_report,confusion_matrix
-
-def sigmoid(x):
-  return 1 / (1 + np.ex(-x))
-  
-def dsigmoid(y):
-  return y * (1.0 - y)
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.naive_bayes import GaussianNB
 
 #==================================
 print "Reading training data ..."
@@ -80,7 +79,7 @@ m_lbl_survived = m_survived.applymap(lambda e: 'Survived' if e == 1 else 'Dead')
 p = ggplot(pa_train_set.assign(Survived=m_lbl_survived['Survived']), aes(x='P0',
 y='P1', color = 'factor(Survived)'))
 p = p + geom_point() + scale_color_manual(values=["red","green"]) + ggtitle("Survived")
-p.show()
+print p
 
 #==================================
 print "Split training set to training and test sets"
@@ -89,11 +88,35 @@ Y = m_survived['Survived'].values
 X = s_train_set[list(s_train_set.columns)].values
 
 #==================================
-print "Training Neural Network"
+print "Trying multiple classifiers:"
 #==================================
-X_train, X_test, Y_train, Y_test = skl.model_selection.train_test_split (X, Y)
-mlp = NN(hidden_layer_sizes=(10,10))
-mlp.fit(X_train, Y_train)
-predicts = mlp.predict(X_test)
-print (confusion_matrix(Y_test, predicts))
-print (classification_report(Y_test, predicts))
+names = ["Linear SVM", "RBF SVM", "Decision Tree","Random Forest",
+		"Neural Network", "AdaBoost", "Naive Bayes"]
+classifiers = [SVC(kernel="linear", C=0.025),
+							 SVC(gamma=2, C=1),
+							 DecisionTreeClassifier(max_depth=6),
+							 RandomForestClassifier(max_depth=6, n_estimators=10,
+								 max_features=None),
+							 MLPClassifier(alpha=1),
+							 AdaBoostClassifier(),
+							 GaussianNB()]
+
+X_train, X_test, Y_train, Y_test = train_test_split (X, Y)
+
+scores = [0] * 7
+i = 0
+for c, clf in zip(names, classifiers):
+	print "%s" % c
+	clf.fit(X_train, Y_train)
+	scores [i] = clf.score(X_test, Y_test)
+	print "   score: %f" % scores[i]
+	i += 1
+	
+classifiers_scores = pd.DataFrame([[1,2,3,4,5,6,7], names,
+	scores]).T.rename(columns={0:'Idx', 1:'Name',2:'Score'})
+plt.plot (classifiers_scores['Idx'], classifiers_scores['Score'], 'ro')
+plt.xticks(classifiers_scores['Idx'], classifiers_scores['Name'], rotation =
+		'vertical')
+plt.margins(0.2)
+plt.subplots_adjust(bottom=0.3)
+plt.show()
