@@ -4,6 +4,15 @@ import pandas as pd
 import numpy as np
 import math
 import re
+import sklearn as skl
+from sklearn.neural_network import MLPClassifier as NN
+from sklearn.metrics import classification_report,confusion_matrix
+
+def sigmoid(x):
+  return 1 / (1 + np.ex(-x))
+  
+def dsigmoid(y):
+  return y * (1.0 - y)
 
 #==================================
 print "Reading training data ..."
@@ -44,48 +53,47 @@ for idx, row in train_set[['Survived','Sex','Age','SibSp',
 			new_row = {'Pclass':pclass, 'Floor':floor, 'Sex':sex, 'Age':age, 
 								'SibSp':sibsp, 'Parch':parch}
 			m_train_set.loc[len(m_train_set)] = new_row
-			m_survived.loc[len(m_survived)] = {'Survived':"Survived"} if survived == 1 else {'Survived':"Dead"}
+			m_survived.loc[len(m_survived)] = {'Survived':survived}
 	else:
 		floor = ord(re.findall('[A-Z]',cabins[0])[0]) - 65
 		new_row = {'Pclass':pclass, 'Floor':floor, 'Sex':sex, 
 							'Age':age, 'SibSp':sibsp, 'Parch':parch}
 		m_train_set.loc[len(m_train_set)] = new_row
-		m_survived.loc[len(m_survived)] = {'Survived':"Survived"} if survived == 1 else {'Survived':"Dead"}
+		m_survived.loc[len(m_survived)] = {'Survived':survived}
 
-#)==================================
-print "Visulizing training data in 2D space"
-#==================================
 # Normalizing and scaling data
 s_train_set = (m_train_set - m_train_set.mean()) / (m_train_set.max() -
 		m_train_set.min())
+
+#==================================
+print "Visulizing training data in 2D space"
+#==================================
+# Compute PCA
+print "Using PCA to reduce to 2D dataset"
 sigma = s_train_set.cov() # Compute covariance matrix of preprocessed data
 U, s, V = np.linalg.svd(sigma, full_matrices=True, compute_uv=True)
 Ureduce = U [:, range(0,2)]
 pa_train_set = s_train_set.dot(Ureduce).rename(columns={0:'P0',1:'P1'})
-
-# Visualize Principal Component of traning set
-p = ggplot(pa_train_set.assign(Survived=m_survived['Survived']), aes(x='P0',
+variance_retained = s[range(0,2)].sum() / s.sum()
+print "Variance retained: %f" % variance_retained
+m_lbl_survived = m_survived.applymap(lambda e: 'Survived' if e == 1 else 'Dead')
+p = ggplot(pa_train_set.assign(Survived=m_lbl_survived['Survived']), aes(x='P0',
 y='P1', color = 'factor(Survived)'))
 p = p + geom_point() + scale_color_manual(values=["red","green"]) + ggtitle("Survived")
 p.show()
 
-#pclass_fare_floor_train_set['pidx'] = pclass_fare_floor_train_set.groupby('Floor').cumcount() + 1
+#==================================
+print "Split training set to training and test sets"
+#==================================
+Y = m_survived['Survived'].values
+X = s_train_set[list(s_train_set.columns)].values
 
-#p = ggplot(pclass_fare_floor_train_set, aes(x='Pclass',y='Fare',color='Floor')) 
-#p = p + geom_point()
-#print (p)
-
-
-#avg_pclass_fare_floor = pd.DataFrame(columns=['Pclass','Fare','Floor'])
-#for k in cnt(pclass_fare_floor_train_set['Floor']).keys():
-#	interested = pclass_fare_cabin_train_set[pclass_fare_cabin_train_set['Cabin'] == k]
-#	row = [interested['Pclass'].sum()/len(interested), interested['Fare'].sum()/len(interested), k]
-#	avg_pclass_fare_cabin.loc[len(avg_pclass_fare_cabin)] = row
-
-		
-# Assume cabin for NaN cabin passengers
-#m_train_set = train_set
-#for idx, row in m_train_set[pd.isnull(m_train_set['Cabin'])].iterrows():
-#	avg_pclass_fare_cabin[['Pclass', 'Fare']].apply (lambda ref: distance_pclass_fare(row, ref), axis = 1)
-
-
+#==================================
+print "Training Neural Network"
+#==================================
+X_train, X_test, Y_train, Y_test = skl.model_selection.train_test_split (X, Y)
+mlp = NN(hidden_layer_sizes=(10,10))
+mlp.fit(X_train, Y_train)
+predicts = mlp.predict(X_test)
+print (confusion_matrix(Y_test, predicts))
+print (classification_report(Y_test, predicts))
